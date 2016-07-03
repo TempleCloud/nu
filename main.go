@@ -11,9 +11,10 @@ import (
 func main() {
 	http.HandleFunc("/v1/ping", ping)
 	http.HandleFunc("/v1/echo", echo)
-	http.HandleFunc("/v1/docker/images", localDocker)
-	http.HandleFunc("/v1/docker/containers", localDocker)
-	http.HandleFunc("/v1/docker/images/alpine", localDocker)
+	http.HandleFunc("/v1/docker/info", localDocker)
+	http.HandleFunc("/v1/docker/images/json", localDocker)
+	http.HandleFunc("/v1/docker/containers/json", localDocker)
+	http.HandleFunc("/v1/docker/images/alpine/json", localDocker)
 	http.ListenAndServe(":9090", nil)
 }
 
@@ -52,7 +53,7 @@ func localDocker(w http.ResponseWriter, r *http.Request) {
 	log.Printf("RawPath: %v", r.URL.RawPath)
 	log.Printf("Path: %v", r.URL.Path)
 
-	dockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker") + "/json"
+	dockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker")
 	log.Printf("dockerUrl: %v", dockerURL)
 	req, err := http.NewRequest(r.Method, dockerURL, nil)
 
