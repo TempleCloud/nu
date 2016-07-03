@@ -5,12 +5,15 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 )
 
 func main() {
 	http.HandleFunc("/v1/ping", ping)
 	http.HandleFunc("/v1/echo", echo)
-	http.HandleFunc("/v1/docker/images", dockerImages)
+	http.HandleFunc("/v1/docker/images", localDocker)
+	http.HandleFunc("/v1/docker/containers", localDocker)
+	http.HandleFunc("/v1/docker/images/alpine", localDocker)
 	http.ListenAndServe(":9090", nil)
 }
 
@@ -29,22 +32,31 @@ func echo(w http.ResponseWriter, r *http.Request) {
 
 //--------------------------------------------------------------------------------------------------
 
-func fakeDial(proto, addr string) (conn net.Conn, err error) {
+func localDockerDial(proto, addr string) (conn net.Conn, err error) {
 	return net.Dial("unix", "/var/run/docker.sock")
 }
 
-func dockerImages(w http.ResponseWriter, r *http.Request) {
+func localDocker(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Invoking!")
 
 	log.Printf("Creating socket!")
-	tr := &http.Transport{
-		Dial: fakeDial,
+
+	dockerTransport := &http.Transport{
+		Dial: localDockerDial,
 	}
+	client := &http.Client{Transport: dockerTransport}
 
-	client := &http.Client{Transport: tr}
+	log.Printf("Request: %v", r)
+	log.Printf("URL: %v", r.URL)
+	log.Printf("RawPath: %v", r.URL.RawPath)
+	log.Printf("Path: %v", r.URL.Path)
 
-	resp, err := client.Get("http://localhost/images/json")
+	dockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker") + "/json"
+	log.Printf("dockerUrl: %v", dockerURL)
+	req, err := http.NewRequest(r.Method, dockerURL, nil)
+
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatal("get request error:", err)
 	}
