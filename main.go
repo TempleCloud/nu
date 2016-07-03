@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -28,36 +29,34 @@ func echo(w http.ResponseWriter, r *http.Request) {
 
 //--------------------------------------------------------------------------------------------------
 
+func fakeDial(proto, addr string) (conn net.Conn, err error) {
+	return net.Dial("unix", "/var/run/docker.sock")
+}
+
 func dockerImages(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Invoking!")
 
 	log.Printf("Creating socket!")
-	dockerSock, err := net.Dial("unix", "/var/run/docker.sock")
-	if err != nil {
-		panic(err)
-	}
-	defer dockerSock.Close()
-
-	log.Printf("Writing to socket")
-	_, err = dockerSock.Write([]byte("GET /images/json HTTP/1.1\n"))
-	_, err = dockerSock.Write([]byte("Host: http\n"))
-	_, err = dockerSock.Write([]byte("User-Agent: golang-client\n"))
-	_, err = dockerSock.Write([]byte("Accept: */*\n"))
-	_, err = dockerSock.Write([]byte("\n"))
-
-	if err != nil {
-		log.Fatal("write error:", err)
+	tr := &http.Transport{
+		Dial: fakeDial,
 	}
 
-	buf := make([]byte, 2064)
-	n, err := dockerSock.Read(buf[:])
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Get("http://localhost/images/json")
 	if err != nil {
-		log.Fatal("read error:", err)
+		log.Fatal("get request error:", err)
 	}
 
-	res := string(buf[0:n])
-	log.Printf("Docker daemon response: %v", res)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal("body read error:", err)
+	}
 
-	w.Write([]byte(res))
+	res := string(string(body))
+	log.Printf("Client got: %v", res)
+
+	w.Write([]byte(body))
+
 }
