@@ -46,7 +46,10 @@ func localDocker(w http.ResponseWriter, r *http.Request) {
 		log.Fatal("get request body error:", err)
 	}
 	payload := string(body)
-	dockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker")
+	queryParams := r.URL.RawQuery
+	dockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker") + "?" + queryParams
+
+	log.Printf("dockerURL: %v", dockerURL)
 
 	// build docker proxy request client
 	dockerTransport := &http.Transport{
@@ -71,7 +74,7 @@ func localDocker(w http.ResponseWriter, r *http.Request) {
 		log.Fatal("body read error:", err)
 	}
 
-	log.Printf("docker proxy response vody: %v", string(body))
+	log.Printf("docker proxy response: %v", string(dockerRsBody))
 	w.Write(dockerRsBody)
 
 }
