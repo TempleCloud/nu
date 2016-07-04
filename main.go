@@ -5,34 +5,54 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
+
+	"github.com/julienschmidt/httprouter"
 )
 
 func main() {
-	http.HandleFunc("/v1/ping", ping)
-	http.HandleFunc("/v1/echo", echo)
-	http.HandleFunc("/v1/docker/info", localDocker)
-	http.HandleFunc("/v1/docker/images/json", localDocker)
-	http.HandleFunc("/v1/docker/containers/json", localDocker)
-	http.HandleFunc("/v1/docker/containers/create", localDocker)
-	http.HandleFunc("/v1/docker/images/alpine/json", localDocker)
-	http.ListenAndServe(":9090", nil)
+	router := httprouter.New()
+	router.GET("/v1/ping", ping)
+	router.GET("/v1/echo", echo)
+	router.HEAD("/v1/docker/*command", dockerHandler)
+	router.OPTIONS("/v1/docker/*command", dockerHandler)
+	router.GET("/v1/docker/*command", dockerHandler)
+	router.PUT("/v1/docker/*command", dockerHandler)
+	router.POST("/v1/docker/*command", dockerHandler)
+	router.DELETE("/v1/docker/*command", dockerHandler)
+	router.PATCH("/v1/docker/*command", dockerHandler)
+	log.Fatal(http.ListenAndServe(":9090", router))
 }
 
 //--------------------------------------------------------------------------------------------------
 
-func ping(w http.ResponseWriter, r *http.Request) {
+func ping(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Write([]byte("pong!"))
 }
 
 //--------------------------------------------------------------------------------------------------
 
-func echo(w http.ResponseWriter, r *http.Request) {
+func echo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	toEcho := r.URL.Query().Get("msg")
 	w.Write([]byte(toEcho))
 }
 
 //--------------------------------------------------------------------------------------------------
+
+func dockerHandler(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
+
+	// build docker proxy request client
+	dockerClient := newDockerClient()
+
+	// build docker proxy request
+	dockerRq := newDockerRq(request, params)
+
+	// invoke docker proxy request
+	dockerRs := invoke(dockerClient, dockerRq)
+	defer dockerRs.Body.Close()
+
+	// process docker proxy response
+	writeResponseBody(responseWriter, dockerRs)
+}
 
 func newDockerDial(proto, addr string) (conn net.Conn, err error) {
 	return net.Dial("unix", "/var/run/docker.sock")
@@ -46,13 +66,13 @@ func newDockerClient() *http.Client {
 	return dockerClient
 }
 
-func buildDockerURL(r *http.Request) string {
-	baseDockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker")
+func buildDockerURL(request *http.Request, params httprouter.Params) string {
+	baseDockerURL := "http://localhost" + params.ByName("command")
 	var dockerURL string
-	if r.URL.RawQuery == "" {
+	if request.URL.RawQuery == "" {
 		dockerURL = baseDockerURL
 	} else {
-		dockerURL = baseDockerURL + "?" + r.URL.RawQuery
+		dockerURL = baseDockerURL + "?" + request.URL.RawQuery
 	}
 	return dockerURL
 }
@@ -65,14 +85,14 @@ func copyHeader(dst, src http.Header) {
 	}
 }
 
-func newDockerRq(r *http.Request) *http.Request {
-	dockerURL := buildDockerURL(r)
-	dockerRq, err := http.NewRequest(r.Method, dockerURL, r.Body)
+func newDockerRq(request *http.Request, params httprouter.Params) *http.Request {
+	dockerURL := buildDockerURL(request, params)
+	dockerRq, err := http.NewRequest(request.Method, dockerURL, request.Body)
 	if err != nil {
 		log.Fatal("docker proxy request init error: ", err)
 	}
 	dockerRq.Header.Add("Content-Type", "application/json")
-	copyHeader(dockerRq.Header, r.Header)
+	copyHeader(dockerRq.Header, request.Header)
 	return dockerRq
 }
 
@@ -90,19 +110,4 @@ func writeResponseBody(responseWriter http.ResponseWriter, response *http.Respon
 		log.Fatal("response read error: ", err)
 	}
 	responseWriter.Write(responseBody)
-}
-
-func localDocker(responseWriter http.ResponseWriter, request *http.Request) {
-	// build docker proxy request client
-	dockerClient := newDockerClient()
-
-	// build docker proxy request
-	dockerRq := newDockerRq(request)
-
-	// invoke docker proxy request
-	dockerRs := invoke(dockerClient, dockerRq)
-	defer dockerRs.Body.Close()
-
-	// process docker proxy response
-	writeResponseBody(responseWriter, dockerRs)
 }
