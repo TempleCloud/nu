@@ -34,47 +34,75 @@ func echo(w http.ResponseWriter, r *http.Request) {
 
 //--------------------------------------------------------------------------------------------------
 
-func localDockerDial(proto, addr string) (conn net.Conn, err error) {
+func newDockerDial(proto, addr string) (conn net.Conn, err error) {
 	return net.Dial("unix", "/var/run/docker.sock")
 }
 
-func localDocker(w http.ResponseWriter, r *http.Request) {
-
-	// process nu request parameters
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Fatal("get request body error:", err)
-	}
-	payload := string(body)
-	queryParams := r.URL.RawQuery
-	dockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker") + "?" + queryParams
-
-	log.Printf("dockerURL: %v", dockerURL)
-
-	// build docker proxy request client
+func newDockerClient() *http.Client {
 	dockerTransport := &http.Transport{
-		Dial: localDockerDial,
+		Dial: newDockerDial,
 	}
-	client := &http.Client{Transport: dockerTransport}
+	dockerClient := &http.Client{Transport: dockerTransport}
+	return dockerClient
+}
+
+func buildDockerURL(r *http.Request) string {
+	baseDockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker")
+	var dockerURL string
+	if r.URL.RawQuery == "" {
+		dockerURL = baseDockerURL
+	} else {
+		dockerURL = baseDockerURL + "?" + r.URL.RawQuery
+	}
+	return dockerURL
+}
+
+func copyHeader(dst, src http.Header) {
+	for k, vv := range src {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
+}
+
+func newDockerRq(r *http.Request) *http.Request {
+	dockerURL := buildDockerURL(r)
+	dockerRq, err := http.NewRequest(r.Method, dockerURL, r.Body)
+	if err != nil {
+		log.Fatal("docker proxy request init error: ", err)
+	}
+	dockerRq.Header.Add("Content-Type", "application/json")
+	copyHeader(dockerRq.Header, r.Header)
+	return dockerRq
+}
+
+func invoke(client *http.Client, request *http.Request) *http.Response {
+	response, err := client.Do(request)
+	if err != nil {
+		log.Fatal("request invocation error: ", err)
+	}
+	return response
+}
+
+func writeResponseBody(responseWriter http.ResponseWriter, response *http.Response) {
+	responseBody, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Fatal("response read error: ", err)
+	}
+	responseWriter.Write(responseBody)
+}
+
+func localDocker(responseWriter http.ResponseWriter, request *http.Request) {
+	// build docker proxy request client
+	dockerClient := newDockerClient()
 
 	// build docker proxy request
-	dockerRq, err := http.NewRequest(r.Method, dockerURL, strings.NewReader(payload))
-	dockerRq.Header.Add("Content-Type", "application/json")
+	dockerRq := newDockerRq(request)
 
 	// invoke docker proxy request
-	dockerRs, err := client.Do(dockerRq)
-	if err != nil {
-		log.Fatal("get request error:", err)
-	}
+	dockerRs := invoke(dockerClient, dockerRq)
 	defer dockerRs.Body.Close()
 
 	// process docker proxy response
-	dockerRsBody, err := ioutil.ReadAll(dockerRs.Body)
-	if err != nil {
-		log.Fatal("body read error:", err)
-	}
-
-	log.Printf("docker proxy response: %v", string(dockerRsBody))
-	w.Write(dockerRsBody)
-
+	writeResponseBody(responseWriter, dockerRs)
 }
