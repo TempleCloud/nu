@@ -14,6 +14,7 @@ func main() {
 	http.HandleFunc("/v1/docker/info", localDocker)
 	http.HandleFunc("/v1/docker/images/json", localDocker)
 	http.HandleFunc("/v1/docker/containers/json", localDocker)
+	http.HandleFunc("/v1/docker/containers/create", localDocker)
 	http.HandleFunc("/v1/docker/images/alpine/json", localDocker)
 	http.ListenAndServe(":9090", nil)
 }
@@ -39,37 +40,38 @@ func localDockerDial(proto, addr string) (conn net.Conn, err error) {
 
 func localDocker(w http.ResponseWriter, r *http.Request) {
 
-	log.Printf("Invoking!")
+	// process nu request parameters
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Fatal("get request body error:", err)
+	}
+	payload := string(body)
+	dockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker")
 
-	log.Printf("Creating socket!")
-
+	// build docker proxy request client
 	dockerTransport := &http.Transport{
 		Dial: localDockerDial,
 	}
 	client := &http.Client{Transport: dockerTransport}
 
-	log.Printf("Request: %v", r)
-	log.Printf("URL: %v", r.URL)
-	log.Printf("RawPath: %v", r.URL.RawPath)
-	log.Printf("Path: %v", r.URL.Path)
+	// build docker proxy request
+	dockerRq, err := http.NewRequest(r.Method, dockerURL, strings.NewReader(payload))
+	dockerRq.Header.Add("Content-Type", "application/json")
 
-	dockerURL := "http://localhost" + strings.TrimPrefix(r.URL.Path, "/v1/docker")
-	log.Printf("dockerUrl: %v", dockerURL)
-	req, err := http.NewRequest(r.Method, dockerURL, nil)
-
-	resp, err := client.Do(req)
+	// invoke docker proxy request
+	dockerRs, err := client.Do(dockerRq)
 	if err != nil {
 		log.Fatal("get request error:", err)
 	}
+	defer dockerRs.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	// process docker proxy response
+	dockerRsBody, err := ioutil.ReadAll(dockerRs.Body)
 	if err != nil {
 		log.Fatal("body read error:", err)
 	}
 
-	res := string(string(body))
-	log.Printf("Client got: %v", res)
-
-	w.Write([]byte(body))
+	log.Printf("docker proxy response vody: %v", string(body))
+	w.Write(dockerRsBody)
 
 }
