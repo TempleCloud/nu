@@ -24,3 +24,5 @@ _testmain.go
 *.prof
 
 nu
+my.db
+/docs
