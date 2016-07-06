@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/satori/go.uuid"
@@ -29,18 +30,44 @@ func (function *Function) SetID(ID string) {
 
 //--------------------------------------------------------------------------------------------------
 
+// ListFunctions registers a function
+func ListFunctions(db *bolt.DB) ([]Function, error) {
+
+	var result = make([]Function, 0)
+
+	db.View(func(tx *bolt.Tx) error {
+		// Assume bucket exists and has keys
+		bucket := tx.Bucket([]byte(ResourceName))
+
+		bucket.ForEach(func(key, value []byte) error {
+			fmt.Printf("key=%s, value=%s\n", key, value)
+
+			persistedFunction := Function{}
+			json.Unmarshal(value, &persistedFunction)
+
+			result = append(result, persistedFunction)
+			fmt.Printf("result: %v\n", result)
+
+			return nil
+		})
+		return nil
+	})
+
+	return result, nil
+}
+
 // RegisterFunction registers a function
 func RegisterFunction(db *bolt.DB, function Function) (Function, error) {
 
-	id := uuid.NewV4()
+	id := uuid.NewV4().String()
 
-	function.SetID(id.String())
+	function.SetID(id)
 
 	functionWithIDBytes, _ := json.Marshal(function)
 
-	boltdb.SetKeyValue(db, []byte(ResourceName), id.Bytes(), functionWithIDBytes)
+	boltdb.SetKeyValue(db, []byte(ResourceName), []byte(id), functionWithIDBytes)
 
-	persistedFunctionBytes, _ := boltdb.GetValue(db, []byte(ResourceName), id.Bytes())
+	persistedFunctionBytes, _ := boltdb.GetValue(db, []byte(ResourceName), []byte(id))
 
 	persistedFunction := Function{}
 	json.Unmarshal(persistedFunctionBytes, &persistedFunction)

@@ -26,10 +26,8 @@ func main() {
 	// |*| : Initialise BoltDB
 	//
 
-	// db = initPersistence()
 	db := boltdb.NewDB()
 	defer db.Close()
-	// models.InitDB(db)
 
 	// |*| : Initialise Httprouter
 	//
@@ -40,7 +38,7 @@ func main() {
 	router.GET("/v1/health/echo", handlers.Echo)
 
 	// nu endpoints - functions
-	// router.GET("/v1/nu/functions", nuFunctionHandler)
+	router.GET("/v1/nu/functions", handlers.ListFunctions(db))
 	// router.GET("/v1/nu/functions/:functionId", nuFunctionHandler)
 	router.PUT("/v1/nu/functions", handlers.RegisterFunction(db))
 	// router.POST("/v1/nu/functions/:functionId", nuFunctionHandler)

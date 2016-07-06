@@ -12,6 +12,16 @@ import (
 
 //--------------------------------------------------------------------------------------------------
 
+// ListFunctions list all functions
+func ListFunctions(db *bolt.DB) httprouter.Handle {
+	return httprouter.Handle(
+		func(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+			allFunctions, _ := models.ListFunctions(db)
+			allFunctionsBytes, _ := json.Marshal(allFunctions)
+			responseWriter.Write(allFunctionsBytes)
+		})
+}
+
 // RegisterFunction registers a function
 func RegisterFunction(db *bolt.DB) httprouter.Handle {
 	return httprouter.Handle(
