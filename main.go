@@ -39,7 +39,7 @@ func main() {
 
 	// nu endpoints - functions
 	router.GET("/v1/nu/functions", handlers.ListFunctions(db))
-	// router.GET("/v1/nu/functions/:functionId", nuFunctionHandler)
+	router.GET("/v1/nu/functions/:functionId", handlers.GetFunction(db))
 	router.PUT("/v1/nu/functions", handlers.RegisterFunction(db))
 	// router.POST("/v1/nu/functions/:functionId", nuFunctionHandler)
 	// router.DELETE("/v1/nu/functions/:functionId", nuFunctionHandler)

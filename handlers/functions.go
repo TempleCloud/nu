@@ -22,6 +22,16 @@ func ListFunctions(db *bolt.DB) httprouter.Handle {
 		})
 }
 
+// GetFunction gets the specified function
+func GetFunction(db *bolt.DB) httprouter.Handle {
+	return httprouter.Handle(
+		func(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
+			function, _ := models.GetFunction(db, params.ByName("functionId"))
+			functionBytes, _ := json.Marshal(function)
+			responseWriter.Write(functionBytes)
+		})
+}
+
 // RegisterFunction registers a function
 func RegisterFunction(db *bolt.DB) httprouter.Handle {
 	return httprouter.Handle(

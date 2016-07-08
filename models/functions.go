@@ -56,6 +56,29 @@ func ListFunctions(db *bolt.DB) ([]Function, error) {
 	return result, nil
 }
 
+// GetFunction gets a function definition
+func GetFunction(db *bolt.DB, id string) (Function, error) {
+
+	var function Function
+
+	_ = db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(ResourceName))
+		if bucket == nil {
+			return fmt.Errorf("Bucket %q not found!", []byte(ResourceName))
+		}
+
+		functionBytes := bucket.Get([]byte(id))
+		persistedFunction := Function{}
+		json.Unmarshal(functionBytes, &persistedFunction)
+
+		function = persistedFunction
+
+		return nil
+	})
+
+	return function, nil
+}
+
 // RegisterFunction registers a function
 func RegisterFunction(db *bolt.DB, function Function) (Function, error) {
 
