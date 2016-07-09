@@ -61,7 +61,7 @@ func GetFunction(db *bolt.DB, id string) (Function, error) {
 
 	var function Function
 
-	_ = db.View(func(tx *bolt.Tx) error {
+	db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(ResourceName))
 		if bucket == nil {
 			return fmt.Errorf("Bucket %q not found!", []byte(ResourceName))
@@ -81,19 +81,35 @@ func GetFunction(db *bolt.DB, id string) (Function, error) {
 
 // RegisterFunction registers a function
 func RegisterFunction(db *bolt.DB, function Function) (Function, error) {
-
 	id := uuid.NewV4().String()
+	return UpdateFunction(db, id, function)
+}
 
-	function.SetID(id)
+// UpdateFunction updates a registered function
+func UpdateFunction(db *bolt.DB, functionID string, function Function) (Function, error) {
+	var err error
+	var persistedFunction Function
 
-	functionWithIDBytes, _ := json.Marshal(function)
+	if function.ID == "" {
+		function.SetID(functionID)
+	}
 
-	boltdb.SetKeyValue(db, []byte(ResourceName), []byte(id), functionWithIDBytes)
+	if functionID == function.ID {
+		functionBytes, _ := json.Marshal(function)
+		boltdb.SetKeyValue(db, []byte(ResourceName), []byte(functionID), functionBytes)
+	} else {
+		err = fmt.Errorf("Invalid functionID: %s", functionID)
+	}
 
-	persistedFunctionBytes, _ := boltdb.GetValue(db, []byte(ResourceName), []byte(id))
-
-	persistedFunction := Function{}
+	persistedFunctionBytes, _ := boltdb.GetValue(db, []byte(ResourceName), []byte(functionID))
+	persistedFunction = Function{}
 	json.Unmarshal(persistedFunctionBytes, &persistedFunction)
 
-	return persistedFunction, nil
+	return persistedFunction, err
+}
+
+// DeleteFunction gets a function definition
+func DeleteFunction(db *bolt.DB, functionID string) error {
+	err := boltdb.DeleteKeyValue(db, []byte(ResourceName), []byte(functionID))
+	return err
 }

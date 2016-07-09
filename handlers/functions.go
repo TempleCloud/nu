@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/boltdb/bolt"
@@ -17,8 +15,6 @@ func ListFunctions(db *bolt.DB) gin.HandlerFunc {
 	return gin.HandlerFunc(
 		func(c *gin.Context) {
 			allFunctions, _ := models.ListFunctions(db)
-			// allFunctionsBytes, _ := json.Marshal(allFunctions)
-			// responseWriter.Write(allFunctionsBytes)
 			c.JSON(http.StatusOK, allFunctions)
 		})
 }
@@ -28,8 +24,6 @@ func GetFunction(db *bolt.DB) gin.HandlerFunc {
 	return gin.HandlerFunc(
 		func(c *gin.Context) {
 			function, _ := models.GetFunction(db, c.Param("functionId"))
-			// functionBytes, _ := json.Marshal(function)
-			// responseWriter.Write(functionBytes)
 			c.JSON(http.StatusOK, function)
 		})
 }
@@ -38,51 +32,41 @@ func GetFunction(db *bolt.DB) gin.HandlerFunc {
 func RegisterFunction(db *bolt.DB) gin.HandlerFunc {
 	return gin.HandlerFunc(
 		func(c *gin.Context) {
-
-			functionBytes, _ := ioutil.ReadAll(c.Request.Body)
-			function := models.Function{}
-			json.Unmarshal(functionBytes, &function)
-
+			// Extract input function to register
+			var function models.Function
+			c.BindJSON(&function)
+			// Return registered function
 			registeredFunction, _ := models.RegisterFunction(db, function)
-
-			// registeredFunctionBytes, _ := json.Marshal(registeredFunction)
-			// responseWriter.Write(registeredFunctionBytes)
 			c.JSON(http.StatusOK, registeredFunction)
 		})
 }
 
-// // ListFunctions list all functions
-// func ListFunctions(db *bolt.DB) httprouter.Handle {
-// 	return httprouter.Handle(
-// 		func(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
-// 			allFunctions, _ := models.ListFunctions(db)
-// 			allFunctionsBytes, _ := json.Marshal(allFunctions)
-// 			responseWriter.Write(allFunctionsBytes)
-// 		})
-// }
-//
-// // GetFunction gets the specified function
-// func GetFunction(db *bolt.DB) httprouter.Handle {
-// 	return httprouter.Handle(
-// 		func(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
-// 			function, _ := models.GetFunction(db, params.ByName("functionId"))
-// 			functionBytes, _ := json.Marshal(function)
-// 			responseWriter.Write(functionBytes)
-// 		})
-// }
-//
-// // RegisterFunction registers a function
-// func RegisterFunction(db *bolt.DB) httprouter.Handle {
-// 	return httprouter.Handle(
-// 		func(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
-//
-// 			functionBytes, _ := ioutil.ReadAll(request.Body)
-// 			function := models.Function{}
-// 			json.Unmarshal(functionBytes, &function)
-//
-// 			registeredFunction, _ := models.RegisterFunction(db, function)
-//
-// 			registeredFunctionBytes, _ := json.Marshal(registeredFunction)
-// 			responseWriter.Write(registeredFunctionBytes)
-// 		})
-// }
+// UpdateFunction updates a registered function
+func UpdateFunction(db *bolt.DB) gin.HandlerFunc {
+	return gin.HandlerFunc(
+		func(c *gin.Context) {
+			// Extract input function to register
+			var function models.Function
+			c.BindJSON(&function)
+			// Return registered function
+			registeredFunction, err := models.UpdateFunction(db, c.Param("functionId"), function)
+			if err == nil {
+				c.JSON(http.StatusOK, registeredFunction)
+			} else {
+				c.AbortWithError(http.StatusBadRequest, err)
+			}
+		})
+}
+
+// DeleteFunction deletes the specified function
+func DeleteFunction(db *bolt.DB) gin.HandlerFunc {
+	return gin.HandlerFunc(
+		func(c *gin.Context) {
+			err := models.DeleteFunction(db, c.Param("functionId"))
+			if err != nil {
+				c.Status(http.StatusOK)
+			} else {
+				c.AbortWithError(http.StatusInternalServerError, err)
+			}
+		})
+}

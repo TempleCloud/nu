@@ -43,6 +43,20 @@ func SetKeyValue(db *bolt.DB, bucket []byte, key []byte, value []byte) {
 	})
 }
 
+// DeleteKeyValue deletes key from the specified bucket
+func DeleteKeyValue(db *bolt.DB, bucket []byte, key []byte) error {
+	var err error
+	db.Update(func(tx *bolt.Tx) error {
+
+		bucket := tx.Bucket(bucket)
+		if bucket != nil {
+			err = bucket.Delete(key)
+		}
+		return nil
+	})
+	return err
+}
+
 // GetValue get the value of the specified bucket and key
 func GetValue(db *bolt.DB, bucket []byte, key []byte) (value []byte, err error) {
 	err = db.View(func(tx *bolt.Tx) error {
