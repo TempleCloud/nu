@@ -3,18 +3,18 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/gin-gonic/gin"
 )
 
 //--------------------------------------------------------------------------------------------------
 
 // Ping writes the string "pong!" back to the client.
-func Ping(responseWriter http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	responseWriter.Write([]byte("pong!"))
+func Ping(c *gin.Context) {
+	c.String(http.StatusOK, "pong!")
 }
 
 // Echo write the value of the query parameter 'msg' back to the cllent
-func Echo(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
-	toEcho := request.URL.Query().Get("msg")
-	responseWriter.Write([]byte(toEcho))
+func Echo(c *gin.Context) {
+	msg := c.Query("msg")
+	c.String(http.StatusOK, msg)
 }

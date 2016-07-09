@@ -6,33 +6,29 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/gin-gonic/gin"
 )
 
 //--------------------------------------------------------------------------------------------------
 
 // DockerProxy forwards the request onto the configured 'docker daemon' and write back the result
-func DockerProxy(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
+func DockerProxy(c *gin.Context) {
 
 	// build docker daemon proxy request client
 	dockerClient := newDockerClient()
 
 	// build docker proxy request
-	dockerRq := newDockerRq(request, params)
+	dockerRq := newDockerRequest(c)
 
 	// invoke docker proxy request
 	dockerRs := invoke(dockerClient, dockerRq)
+	dockerResponseBody, _ := ioutil.ReadAll(dockerRs.Body)
 	defer dockerRs.Body.Close()
 
-	// write docker response
-	writeResponseBody(responseWriter, dockerRs)
+	c.String(http.StatusOK, string(dockerResponseBody))
 }
 
 //--------------------------------------------------------------------------------------------------
-
-func newDockerDial(proto, addr string) (conn net.Conn, err error) {
-	return net.Dial("unix", "/var/run/docker.sock")
-}
 
 func newDockerClient() *http.Client {
 	dockerTransport := &http.Transport{
@@ -42,14 +38,34 @@ func newDockerClient() *http.Client {
 	return dockerClient
 }
 
-func buildDockerURL(request *http.Request, params httprouter.Params) string {
-	baseDockerURL := "http://localhost" + params.ByName("command")
+func newDockerDial(proto, addr string) (conn net.Conn, err error) {
+	return net.Dial("unix", "/var/run/docker.sock")
+}
+
+func newDockerRequest(c *gin.Context) *http.Request {
+
+	dockerURL := buildDockerURL(c.Param("command"), c.Request.URL.RawQuery)
+	dockerRq, err := http.NewRequest(c.Request.Method, dockerURL, c.Request.Body)
+	if err != nil {
+		log.Fatal("docker proxy request init error: ", err)
+	}
+	dockerRq.Header.Add("Content-Type", "application/json")
+	copyHeader(dockerRq.Header, c.Request.Header)
+
+	return dockerRq
+}
+
+func buildDockerURL(dockerCmdURL string, dockerCmdQueryParams string) string {
+
+	baseDockerURL := "http://localhost" + dockerCmdURL
+
 	var dockerURL string
-	if request.URL.RawQuery == "" {
+	if dockerCmdQueryParams == "" {
 		dockerURL = baseDockerURL
 	} else {
-		dockerURL = baseDockerURL + "?" + request.URL.RawQuery
+		dockerURL = baseDockerURL + "?" + dockerCmdQueryParams
 	}
+
 	return dockerURL
 }
 
@@ -61,29 +77,12 @@ func copyHeader(dst, src http.Header) {
 	}
 }
 
-func newDockerRq(request *http.Request, params httprouter.Params) *http.Request {
-	dockerURL := buildDockerURL(request, params)
-	dockerRq, err := http.NewRequest(request.Method, dockerURL, request.Body)
-	if err != nil {
-		log.Fatal("docker proxy request init error: ", err)
-	}
-	dockerRq.Header.Add("Content-Type", "application/json")
-	copyHeader(dockerRq.Header, request.Header)
-	return dockerRq
-}
-
 func invoke(client *http.Client, request *http.Request) *http.Response {
+
 	response, err := client.Do(request)
+
 	if err != nil {
 		log.Fatal("request invocation error: ", err)
 	}
 	return response
-}
-
-func writeResponseBody(responseWriter http.ResponseWriter, response *http.Response) {
-	responseBody, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		log.Fatal("response read error: ", err)
-	}
-	responseWriter.Write(responseBody)
 }
