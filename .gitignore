@@ -26,3 +26,5 @@ _testmain.go
 nu
 my.db
 /docs
+/itest
+/tmp

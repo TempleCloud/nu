@@ -82,7 +82,7 @@ func main() {
 	//
 	router := gin.Default()
 
-	// health check endpoints
+	// health endpoints
 	router.GET("/v1/health/ping", handlers.Ping)
 	router.GET("/v1/health/echo", handlers.Echo)
 
@@ -92,6 +92,8 @@ func main() {
 	router.PUT("/v1/nu/functions", handlers.RegisterFunction(db))
 	router.POST("/v1/nu/functions/:functionId", handlers.UpdateFunction(db))
 	router.DELETE("/v1/nu/functions/:functionId", handlers.DeleteFunction(db))
+	// nu endpoints - functions/code-archive
+	router.POST("/v1/nu/functions/:functionId/code-archive", handlers.UpdateFunctionData(db))
 
 	// docker proxy endpoints - testing only
 	router.HEAD("/v1/docker/*command", handlers.DockerProxy)
